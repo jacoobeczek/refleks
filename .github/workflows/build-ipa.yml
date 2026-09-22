@@ -1,0 +1,50 @@
+name: Build .ipa
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build iOS app
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: refleks
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: cd ios && xcodegen generate
+
+      - name: Archive (unsigned)
+        run: |
+          xcodebuild \
+            -project ios/Refleks.xcodeproj \
+            -scheme Refleks \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/Refleks.xcarchive \
+            archive \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Package .ipa
+        run: |
+          mkdir -p packaging/Payload
+          cp -R "build/Refleks.xcarchive/Products/Applications/Refleks.app" packaging/Payload/
+          cd packaging
+          zip -qry ../Refleks.ipa Payload
+
+      - name: Upload .ipa artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Refleks-ipa
+          path: refleks/Refleks.ipa
+          if-no-files-found: error
